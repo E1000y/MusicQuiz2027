@@ -6,4 +6,9 @@ J'ai optimisé la taille pour que les extraits sonores ne dépassent pas 40Mo vu
 
 Je travaille sur le JavaScript et le CSS pour un rendu fonctionnel et a minima joli
 
-Je souhaite publier tout ceci sur github pages
+## Publication sur GitHub Pages
+
+Le workflow `.github/workflows/pages.yml` publie le jeu à chaque push sur `main`.
+Pour activer la première publication, ouvrir **Settings > Pages** dans le dépôt
+et choisir **GitHub Actions** comme source de build et de déploiement. L'adresse
+du site sera https://e1000y.github.io/MusicQuiz2027/.

@@ -31,6 +31,7 @@ def decouper_audio(fichier_mp3, fichier_json, dossier_sortie="extraits"):
         extrait = sound[start_ms:end_ms]
         
         # Formate le nom du fichier de sortie en incluant l'id, le temps et le nom de la piste
+        # Ajouté par Copilot car ":" est interdit dans un nom de fichier
         temps_fichier = piste["time"].replace(":", "-")
         nom_piste = re.sub(r'[<>:"/\\|?*]', "-", piste["nom"]).strip(" .")
         nom_fichier = os.path.join(

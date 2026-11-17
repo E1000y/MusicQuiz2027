@@ -1,24 +1,310 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>Blind Test Classique</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>Quiz Musical Classique 🎵</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+  }
+  .quiz-box {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    width: 480px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  }
+  h1 { margin-top: 0; }
+  button {
+    background: #ff6b6b;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 5px;
+  }
+  button:hover { background: #ff8787; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  #progressBar {
+    display: none;
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+    height: 12px;
+    margin: 10px 0;
+  }
+  #progress {
+    background: #51cf66;
+    height: 100%;
+    width: 0%;
+    border-radius: 10px;
+  }
+  #feedback { font-weight: bold; min-height: 40px; }
+  .correct { color: #51cf66; }
+  .wrong { color: #ff6b6b; }
+  #timer { min-height: 20px; margin: 0; }
+  #choices { display: none; margin-top: 10px; }
+  .choice {
+    display: block;
+    width: 100%;
+    margin: 6px 0;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.15);
+    text-align: left;
+    font-size: 15px;
+  }
+  .choice:hover { background: rgba(255,255,255,0.3); }
+  .choice.correct-answer { background: #2f9e44; }
+  .choice.wrong-answer { background: #c92a2a; }
+</style>
+<base target="_blank">
 </head>
 <body>
-    <div id="quiz-container">
-        <h1>Blind Test Musique Classique</h1>
-        <div id="numero-question">Chargement...</div>
-        
-        <!-- Lecteur audio intégré -->
-        <div id="player-container">
-            <audio controls id="lecteur-audio"></audio>
-        </div>
 
-        <div id="propositions"></div>
-        <div id="score-container">Score : <span id="score-actuel">0</span></div>
-    </div>
+<div class="quiz-box">
+  <h1>🎵 Quiz Musical Classique</h1>
+  <p id="info">Bienvenue ! Cliquez sur "Jouer" pour écouter le premier extrait.</p>
 
-    <script src="script.js"></script>
+  <button id="playBtn">▶ Jouer l'extrait</button>
+
+  <div id="progressBar"><div id="progress"></div></div>
+  <p id="timer"></p>
+
+  <div id="choices"></div>
+
+  <p id="feedback"></p>
+  <p>Score : <span id="score">0</span> / <span id="total">0</span></p>
+  <button id="nextBtn" style="display:none;">Morceau suivant ➡</button>
+</div>
+
+<audio id="player" preload="auto"></audio>
+
+<script>
+const NB_CHOICES = 4; // nombre de propositions par question
+const TRACKS_URL = 'musiquesMp3/MusicQuiz2027.json';
+
+const player   = document.getElementById('player');
+const playBtn  = document.getElementById('playBtn');
+const choices  = document.getElementById('choices');
+const feedback = document.getElementById('feedback');
+const nextBtn  = document.getElementById('nextBtn');
+const info     = document.getElementById('info');
+const scoreEl  = document.getElementById('score');
+const totalEl  = document.getElementById('total');
+const progressBar = document.getElementById('progressBar');
+const progress = document.getElementById('progress');
+const timer    = document.getElementById('timer');
+
+// Ordre aléatoire des questions (mettre à false pour jouer dans l'ordre de la vidéo)
+const SHUFFLE_QUESTIONS = true;
+
+let tracks = [];
+let order = [];
+let currentIndex = 0;
+let score = 0;
+let answered = false;
+let uiInterval = null;
+
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return m + ':' + s;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function timeToSeconds(time) {
+  return time.split(':').reduce((seconds, part) => seconds * 60 + Number(part), 0);
+}
+
+function clipPath(track) {
+  const safeName = track.nom
+    .replace(/[<>:"\\|?*]/g, '-')
+    .replace(/\//g, '-')
+    .replace(/^[ .]+|[ .]+$/g, '');
+  const fileName = `${track.id}_${track.time.replace(':', '-')}_${safeName}.mp3`;
+  return `extraits/${encodeURIComponent(fileName)}`;
+}
+
+async function loadTracks() {
+  try {
+    const response = await fetch(TRACKS_URL);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length < NB_CHOICES) {
+      throw new Error('Le JSON doit contenir au moins quatre extraits.');
+    }
+
+    tracks = data.map(track => {
+      if (!Number.isInteger(track.id) || typeof track.nom !== 'string'
+        || typeof track.time !== 'string' || typeof track.timeNext !== 'string') {
+        throw new Error('Un extrait du JSON a des champs invalides.');
+      }
+
+      const start = timeToSeconds(track.time);
+      const end = timeToSeconds(track.timeNext);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+        throw new Error(`Les temps de l'extrait ${track.id} sont invalides.`);
+      }
+
+      return { ...track, start, end };
+    });
+
+    if (new Set(tracks.map(track => track.id)).size !== tracks.length) {
+      throw new Error('Les IDs des extraits doivent être uniques.');
+    }
+
+    order = tracks.map(track => track.id);
+    if (SHUFFLE_QUESTIONS) shuffle(order);
+    playBtn.disabled = false;
+  } catch (error) {
+    console.error('Impossible de charger la liste des extraits.', error);
+    info.textContent = 'Impossible de charger la liste des extraits.';
+    feedback.textContent = 'Vérifiez que le JSON est accessible et que la page est servie via HTTP.';
+  }
+}
+
+function buildChoices(correctId) {
+  const distractors = shuffle(
+    tracks.map(track => track.id).filter(id => id !== correctId)
+  ).slice(0, NB_CHOICES - 1);
+  return shuffle([correctId, ...distractors]);
+}
+
+function playExcerpt() {
+  answered = false;
+  feedback.textContent = "";
+  feedback.className = "";
+  choices.innerHTML = "";
+  choices.style.display = 'none';
+  timer.textContent = "";
+
+  const correctId = order[currentIndex];
+  const track = tracks.find(item => item.id === correctId);
+  const duration = track.end - track.start;
+
+  progress.style.width = '0%';
+  progressBar.style.display = 'block';
+
+  const onReady = () => {
+    player.currentTime = 0;
+    info.textContent = `Extrait ${currentIndex + 1} / ${order.length} — ${fmtTime(duration)} d'écoute`;
+    player.play().catch(onPlaybackError);
+  };
+
+  const onPlaybackError = () => {
+    clearInterval(uiInterval);
+    playBtn.disabled = false;
+    playBtn.textContent = '▶ Réessayer';
+    info.textContent = `Impossible de lire l'extrait ${track.id}.`;
+  };
+
+  player.onloadedmetadata = onReady;
+  player.onerror = onPlaybackError;
+  player.src = clipPath(track);
+  player.load();
+
+  // Mise à jour barre de progression + compte à rebours
+  clearInterval(uiInterval);
+  uiInterval = setInterval(() => {
+    const t = player.currentTime;
+    progress.style.width = Math.min(t / duration * 100, 100) + '%';
+    timer.textContent = `⏱ ${fmtTime(Math.max(t, 0))} / ${fmtTime(duration)}`;
+  }, 200);
+
+  // Arrêt automatique exactement à la fin de l'extrait
+  player.ontimeupdate = () => {
+    if (player.currentTime >= duration - 0.05) {
+      player.pause();
+      playBtn.disabled = false;
+      playBtn.textContent = '🔁 Réécouter';
+    }
+  };
+
+  buildChoices(correctId).forEach(id => {
+    const choiceTrack = tracks.find(item => item.id === id);
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.dataset.trackId = id;
+    btn.textContent = choiceTrack.nom;
+    btn.addEventListener('click', () => validate(id, btn, correctId));
+    choices.appendChild(btn);
+  });
+
+  choices.style.display = 'block';
+  nextBtn.style.display = 'none';
+  playBtn.disabled = true;
+  playBtn.textContent = '▶ Lecture en cours…';
+}
+
+function validate(selectedId, btn, correctId) {
+  if (answered) return;
+  answered = true;
+  player.pause();
+  clearInterval(uiInterval);
+  playBtn.disabled = false;
+  playBtn.textContent = '🔁 Réécouter';
+
+  const track = tracks.find(item => item.id === correctId);
+
+  // Coloration : vert = bonne réponse, rouge = mauvaise choisie
+  document.querySelectorAll('.choice').forEach(b => {
+    if (Number(b.dataset.trackId) === correctId) b.classList.add('correct-answer');
+    b.disabled = true;
+  });
+
+  if (selectedId === correctId) {
+    score++;
+    feedback.textContent = '✅ Bravo, bonne réponse !';
+    feedback.className = 'correct';
+  } else {
+    btn.classList.add('wrong-answer');
+    feedback.textContent = `❌ Raté ! La bonne réponse était : ${track.nom}`;
+    feedback.className = 'wrong';
+  }
+
+  scoreEl.textContent = score;
+  totalEl.textContent = currentIndex + 1;
+
+  if (currentIndex < order.length - 1) {
+    nextBtn.style.display = 'inline-block';
+  } else {
+    info.textContent = `🏁 Quiz terminé ! Score final : ${score} / ${order.length}`;
+    playBtn.style.display = 'none';
+    choices.style.display = 'none';
+    progressBar.style.display = 'none';
+  }
+}
+
+function nextTrack() {
+  currentIndex++;
+  playExcerpt();
+}
+
+playBtn.addEventListener('click', playExcerpt);
+nextBtn.addEventListener('click', nextTrack);
+playBtn.disabled = true;
+loadTracks();
+</script>
+
 </body>
 </html>

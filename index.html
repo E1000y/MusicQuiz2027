@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Quiz Musical Classique 🎵</title>
 <style>
   body {
@@ -66,6 +67,24 @@
   .choice:hover { background: rgba(255,255,255,0.3); }
   .choice.correct-answer { background: #2f9e44; }
   .choice.wrong-answer { background: #c92a2a; }
+  @media (max-width: 600px) and (orientation: portrait) {
+    body {
+      align-items: flex-start;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 16px 12px;
+      box-sizing: border-box;
+    }
+    .quiz-box {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 24px 18px;
+    }
+    .choice {
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+  }
 </style>
 <base target="_blank">
 </head>

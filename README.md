@@ -4,4 +4,6 @@ Le lien Youtube n'étant pas exploitable directement, j'ai dû extraire les 71 p
 
 J'ai optimisé la taille pour que les extraits sonores ne dépassent pas 40Mo vu que la taille limite d'une page github est de 100Mo
 
-Je travaille sur le Javascrîpt et le CSS pour un rendu fonctionnel et a minima joli
+Je travaille sur le JavaScript et le CSS pour un rendu fonctionnel et a minima joli
+
+Je souhaite publier tout ceci sur github pages
